@@ -27,8 +27,28 @@ static void resetStack() {
     vm.openUpvalues = NULL;
 }
 
-void runtimeError(const char *format, ...) {
+void runtimeErrorHandle(const char *format, va_list args) {
+    va_list argsCopy;
+    va_copy(argsCopy, args);
+
+    int length = vsnprintf(NULL, 0, format, args);
+
+    char *error = (char *) malloc(length + 1);
+    if (error == NULL) {
+        printf("Unable to allocate memory\n");
+        exit(71);
+    }
+
+    vsnprintf(error, length, format, argsCopy);
+    push(OBJ_VAL(copyString(error, length - 1)));
+}
+
+void runtimeErrorEnd(const char *format, va_list args) {
+    va_list argsCopy;
+
     for (int i = vm.frameCount - 1; i >= 0; i--) {
+        va_copy(argsCopy, args);
+
         CallFrame *frame = &vm.frames[i];
 
         ObjFunction *function = frame->closure->function;
@@ -46,14 +66,22 @@ void runtimeError(const char *format, ...) {
             fprintf(stderr, "%s(): ", function->name->chars);
         }
 
-        va_list args;
-        va_start(args, format);
-        vfprintf(stderr, format, args);
+        vfprintf(stderr, format, argsCopy);
         fputs("\n", stderr);
-        va_end(args);
     }
 
     resetStack();
+}
+
+void runtimeError(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    if (vm.tryBlock) {
+        runtimeErrorHandle(format, args);
+    } else {
+        runtimeErrorEnd(format, args);
+    }
+    va_end(args);
 }
 
 void initVM(bool repl, const char *scriptName) {
@@ -61,6 +89,7 @@ void initVM(bool repl, const char *scriptName) {
     vm.objects = NULL;
     vm.repl = repl;
     vm.gc = true;
+    vm.tryBlock = true;
     vm.scriptName = scriptName;
     vm.currentScriptName = scriptName;
     vm.bytesAllocated = 0;
@@ -81,6 +110,7 @@ void freeVM() {
     vm.initString = NULL;
     vm.replVar = NULL;
     vm.gc = NULL;
+    vm.tryBlock = NULL;
     freeObjects();
 }
 
@@ -93,6 +123,7 @@ void push(Value value) {
 Value pop() {
     vm.stackTop--;
     vm.stackCount--;
+    printf("%d\n", vm.stackCount);
     return *vm.stackTop;
 }
 
@@ -1044,7 +1075,16 @@ static InterpretResult run() {
             int argCount = READ_BYTE();
             frame->ip = ip;
             if (!callValue(peek(argCount), argCount)) {
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    for (int i = 0; i < argCount + 1; i++) {
+                        pop(); // Clear args passed to function
+                    }
+                    push(error); // Push the error back to the top of the stack
+                }
+                else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
             frame = &vm.frames[vm.frameCount - 1];
             ip = frame->ip;

@@ -21,6 +21,7 @@ typedef struct {
     int stackCount;
     bool repl;
     bool gc;
+    bool tryBlock;
     const char *scriptName;
     const char *currentScriptName;
     CallFrame frames[FRAMES_MAX];
