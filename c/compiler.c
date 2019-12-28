@@ -932,7 +932,7 @@ static void prefix(bool canAssign) {
     bool instance = false;
 
     if (match(TOKEN_DOT)) {
-        consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
+        consume(TOKEN_IDENTIFIER, "Expect property name after '.'");
         arg = identifierConstant(&parser.previous);
         emitBytes(OP_GET_PROPERTY_NO_POP, arg);
         instance = true;

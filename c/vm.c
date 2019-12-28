@@ -31,9 +31,9 @@ void runtimeErrorHandle(const char *format, va_list args) {
     va_list argsCopy;
     va_copy(argsCopy, args);
 
-    int length = vsnprintf(NULL, 0, format, args);
+    int length = vsnprintf(NULL, 0, format, args) + 1;
 
-    char *error = (char *) malloc(length + 1);
+    char *error = (char *) malloc(length);
     if (error == NULL) {
         printf("Unable to allocate memory\n");
         exit(71);
@@ -564,8 +564,12 @@ static InterpretResult run() {
             Value value;
             if (!tableGet(&vm.globals, name, &value)) {
                 frame->ip = ip;
-                runtimeError("Undefined variable '%s'.", name->chars);
-                return INTERPRET_RUNTIME_ERROR;
+                runtimeError("Undefined variable '%s'", name->chars);
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
             push(value);
             DISPATCH();
@@ -580,11 +584,20 @@ static InterpretResult run() {
 
         CASE_CODE(SET_GLOBAL): {
             ObjString *name = READ_STRING();
-            if (tableSet(&vm.globals, name, peek(0))) {
+            Value value;
+            if (!tableGet(&vm.globals, name, &value)) {
                 frame->ip = ip;
-                runtimeError("Undefined variable '%s'.", name->chars);
-                return INTERPRET_RUNTIME_ERROR;
+                runtimeError("Undefined variable '%s'", name->chars);
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
+            tableSet(&vm.globals, name, peek(0));
             DISPATCH();
         }
 
@@ -602,8 +615,13 @@ static InterpretResult run() {
 
         CASE_CODE(GET_PROPERTY): {
             if (!IS_INSTANCE(peek(0))) {
+                frame->ip = ip;
                 runtimeError("Only instances have properties.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             ObjInstance *instance = AS_INSTANCE(peek(0));
@@ -624,8 +642,13 @@ static InterpretResult run() {
 
         CASE_CODE(GET_PROPERTY_NO_POP): {
             if (!IS_INSTANCE(peek(0))) {
+                frame->ip = ip;
                 runtimeError("Only instances have properties.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             ObjInstance *instance = AS_INSTANCE(peek(0));
@@ -645,8 +668,13 @@ static InterpretResult run() {
 
         CASE_CODE(SET_PROPERTY): {
             if (!IS_INSTANCE(peek(1))) {
+                frame->ip = ip;
                 runtimeError("Only instances have fields.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             ObjInstance *instance = AS_INSTANCE(peek(1));
@@ -706,15 +734,30 @@ static InterpretResult run() {
             } else {
                 frame->ip = ip;
                 runtimeError("Unsupported operand types.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    pop();
+                    push(error);
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
             DISPATCH();
         }
 
         CASE_CODE(INCREMENT): {
             if (!IS_NUMBER(peek(0))) {
+                frame->ip = ip;
                 runtimeError("Operand must be a number.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             push(NUMBER_VAL(AS_NUMBER(pop()) + 1));
@@ -723,8 +766,16 @@ static InterpretResult run() {
 
         CASE_CODE(DECREMENT): {
             if (!IS_NUMBER(peek(0))) {
+                frame->ip = ip;
                 runtimeError("Operand must be a number.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             push(NUMBER_VAL(AS_NUMBER(pop()) - 1));
@@ -743,7 +794,15 @@ static InterpretResult run() {
             if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) {
                 frame->ip = ip;
                 runtimeError("Operands must be numbers.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             double b = AS_NUMBER(pop());
@@ -757,7 +816,15 @@ static InterpretResult run() {
             if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) {
                 frame->ip = ip;
                 runtimeError("Operands must be numbers.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             double b = AS_NUMBER(pop());
@@ -787,7 +854,14 @@ static InterpretResult run() {
             if (!IS_NUMBER(peek(0))) {
                 frame->ip = ip;
                 runtimeError("Operand must be a number.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             push(NUMBER_VAL(-AS_NUMBER(pop())));
@@ -869,7 +943,16 @@ static InterpretResult run() {
             if (!IS_STRING(key)) {
                 frame->ip = ip;
                 runtimeError("Dictionary key must be a string.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    pop();
+                    pop();
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             ObjDict *dict = AS_DICT(dictValue);
@@ -892,7 +975,11 @@ static InterpretResult run() {
             if (!IS_OBJ(subscriptValue)) {
                 frame->ip = ip;
                 runtimeError("Can only subscript on lists, strings or dictionaries.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             switch (getObjType(subscriptValue)) {
@@ -900,7 +987,11 @@ static InterpretResult run() {
                     if (!IS_NUMBER(indexValue)) {
                         frame->ip = ip;
                         runtimeError("List index must be a number.");
-                        return INTERPRET_RUNTIME_ERROR;
+                        if (vm.tryBlock) {
+                            DISPATCH();
+                        } else {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
                     }
 
                     ObjList *list = AS_LIST(subscriptValue);
@@ -917,7 +1008,11 @@ static InterpretResult run() {
 
                     frame->ip = ip;
                     runtimeError("List index out of bounds.");
-                    return INTERPRET_RUNTIME_ERROR;
+                    if (vm.tryBlock) {
+                        DISPATCH();
+                    } else {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
 
                 case OBJ_STRING: {
@@ -935,14 +1030,22 @@ static InterpretResult run() {
 
                     frame->ip = ip;
                     runtimeError("String index out of bounds.");
-                    return INTERPRET_RUNTIME_ERROR;
+                    if (vm.tryBlock) {
+                        DISPATCH();
+                    } else {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
 
                 case OBJ_DICT: {
                     if (!IS_STRING(indexValue)) {
                         frame->ip = ip;
                         runtimeError("Dictionary key must be a string.");
-                        return INTERPRET_RUNTIME_ERROR;
+                        if (vm.tryBlock) {
+                            DISPATCH();
+                        } else {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
                     }
 
                     ObjDict *dict = AS_DICT(subscriptValue);
@@ -956,7 +1059,11 @@ static InterpretResult run() {
                 default: {
                     frame->ip = ip;
                     runtimeError("Can only subscript on lists, strings or dictionaries.");
-                    return INTERPRET_RUNTIME_ERROR;
+                    if (vm.tryBlock) {
+                        DISPATCH();
+                    } else {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
             }
         }
@@ -969,7 +1076,11 @@ static InterpretResult run() {
             if (!IS_OBJ(subscriptValue)) {
                 frame->ip = ip;
                 runtimeError("Can only subscript on lists, strings or dictionaries.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             switch (getObjType(subscriptValue)) {
@@ -977,7 +1088,11 @@ static InterpretResult run() {
                     if (!IS_NUMBER(indexValue)) {
                         frame->ip = ip;
                         runtimeError("List index must be a number.");
-                        return INTERPRET_RUNTIME_ERROR;
+                        if (vm.tryBlock) {
+                            DISPATCH();
+                        } else {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
                     }
 
                     ObjList *list = AS_LIST(subscriptValue);
@@ -996,14 +1111,22 @@ static InterpretResult run() {
 
                     frame->ip = ip;
                     runtimeError("List index out of bounds.");
-                    return INTERPRET_RUNTIME_ERROR;
+                    if (vm.tryBlock) {
+                        DISPATCH();
+                    } else {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
 
                 case OBJ_DICT: {
                     if (!IS_STRING(indexValue)) {
                         frame->ip = ip;
                         runtimeError("Dictionary key must be a string.");
-                        return INTERPRET_RUNTIME_ERROR;
+                        if (vm.tryBlock) {
+                            DISPATCH();
+                        } else {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
                     }
 
                     ObjDict *dict = AS_DICT(subscriptValue);
@@ -1018,7 +1141,11 @@ static InterpretResult run() {
                 default: {
                     frame->ip = ip;
                     runtimeError("Only lists and dictionaries support subscript assignment.");
-                    return INTERPRET_RUNTIME_ERROR;
+                    if (vm.tryBlock) {
+                        DISPATCH();
+                    } else {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
             }
         }
@@ -1028,18 +1155,26 @@ static InterpretResult run() {
             Value indexValue = pop();
             Value subscriptValue = pop();
 
-            if (!IS_OBJ(subscriptValue)) {
-                frame->ip = ip;
+        if (!IS_OBJ(subscriptValue)) {
+            frame->ip = ip;
                 runtimeError("Can only subscript on lists, strings or dictionaries.");
+            if (vm.tryBlock) {
+            } else {
+                DISPATCH();
                 return INTERPRET_RUNTIME_ERROR;
             }
+        }
 
             switch (getObjType(subscriptValue)) {
                 case OBJ_LIST: {
                     if (!IS_NUMBER(indexValue)) {
                         frame->ip = ip;
                         runtimeError("List index must be a number.");
-                        return INTERPRET_RUNTIME_ERROR;
+                        if (vm.tryBlock) {
+                            DISPATCH();
+                        } else {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
                     }
 
                     ObjList *list = AS_LIST(subscriptValue);
@@ -1059,14 +1194,22 @@ static InterpretResult run() {
 
                     frame->ip = ip;
                     runtimeError("List index out of bounds.");
-                    return INTERPRET_RUNTIME_ERROR;
+                    if (vm.tryBlock) {
+                        DISPATCH();
+                    } else {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
 
                 case OBJ_DICT: {
                     if (!IS_STRING(indexValue)) {
                         frame->ip = ip;
                         runtimeError("Dictionary key must be a string.");
-                        return INTERPRET_RUNTIME_ERROR;
+                        if (vm.tryBlock) {
+                            DISPATCH();
+                        } else {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
                     }
 
                     ObjDict *dict = AS_DICT(subscriptValue);
@@ -1083,7 +1226,11 @@ static InterpretResult run() {
                 default: {
                     frame->ip = ip;
                     runtimeError("Only lists and dictionaries support subscript assignment.");
-                    return INTERPRET_RUNTIME_ERROR;
+                    if (vm.tryBlock) {
+                        DISPATCH();
+                    } else {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
                 }
             }
             DISPATCH();
@@ -1094,6 +1241,9 @@ static InterpretResult run() {
             frame->ip = ip;
             if (!callValue(peek(argCount), argCount)) {
                 if (vm.tryBlock) {
+                    // The runtime error will be raised within the function itself
+                    // and pushed onto the stack as a string. We will get the error
+                    // and pop all values off the stack the function used.
                     Value error = pop();
                     for (int i = 0; i < argCount + 1; i++) {
                         pop(); // Clear args passed to function
@@ -1114,7 +1264,19 @@ static InterpretResult run() {
             ObjString *method = READ_STRING();
             frame->ip = ip;
             if (!invoke(method, argCount)) {
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    // The runtime error will be raised within the function itself
+                    // and pushed onto the stack as a string. We will get the error
+                    // and pop all values off the stack the function used.
+                    Value error = pop();
+                    for (int i = 0; i < argCount + 1; i++) {
+                        pop(); // Clear args passed to function
+                    }
+                    push(error); // Push the error back to the top of the stack
+                }
+                else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
             frame = &vm.frames[vm.frameCount - 1];
             ip = frame->ip;
@@ -1127,7 +1289,19 @@ static InterpretResult run() {
             frame->ip = ip;
             ObjClass *superclass = AS_CLASS(pop());
             if (!invokeFromClass(superclass, method, argCount)) {
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    // The runtime error will be raised within the function itself
+                    // and pushed onto the stack as a string. We will get the error
+                    // and pop all values off the stack the function used.
+                    Value error = pop();
+                    for (int i = 0; i < argCount + 1; i++) {
+                        pop(); // Clear args passed to function
+                    }
+                    push(error); // Push the error back to the top of the stack
+                }
+                else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
             frame = &vm.frames[vm.frameCount - 1];
             ip = frame->ip;
@@ -1197,7 +1371,16 @@ static InterpretResult run() {
             if (!IS_CLASS(superclass)) {
                 frame->ip = ip;
                 runtimeError("Superclass must be a class.");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    Value error = pop();
+                    printValue(error);
+                    printf("\n");
+                    pop();
+                    push(error);
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             createClass(READ_STRING(), AS_CLASS(superclass));
