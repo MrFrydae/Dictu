@@ -889,11 +889,17 @@ static InterpretResult run() {
             Value indexValue = pop();
             Value subscriptValue = pop();
 
+            if (!IS_OBJ(subscriptValue)) {
+                frame->ip = ip;
+                runtimeError("Can only subscript on lists, strings or dictionaries.");
+                return INTERPRET_RUNTIME_ERROR;
+            }
+
             switch (getObjType(subscriptValue)) {
                 case OBJ_LIST: {
                     if (!IS_NUMBER(indexValue)) {
                         frame->ip = ip;
-                        runtimeError("Array index must be a number.");
+                        runtimeError("List index must be a number.");
                         return INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -910,7 +916,7 @@ static InterpretResult run() {
                     }
 
                     frame->ip = ip;
-                    runtimeError("Array index out of bounds.");
+                    runtimeError("List index out of bounds.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
@@ -928,7 +934,7 @@ static InterpretResult run() {
                     }
 
                     frame->ip = ip;
-                    runtimeError("Array index out of bounds.");
+                    runtimeError("String index out of bounds.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
@@ -960,11 +966,17 @@ static InterpretResult run() {
             Value indexValue = pop();
             Value subscriptValue = pop();
 
+            if (!IS_OBJ(subscriptValue)) {
+                frame->ip = ip;
+                runtimeError("Can only subscript on lists, strings or dictionaries.");
+                return INTERPRET_RUNTIME_ERROR;
+            }
+
             switch (getObjType(subscriptValue)) {
                 case OBJ_LIST: {
                     if (!IS_NUMBER(indexValue)) {
                         frame->ip = ip;
-                        runtimeError("Array index must be a number.");
+                        runtimeError("List index must be a number.");
                         return INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -983,7 +995,7 @@ static InterpretResult run() {
                     push(NIL_VAL);
 
                     frame->ip = ip;
-                    runtimeError("Array index out of bounds.");
+                    runtimeError("List index out of bounds.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
@@ -1016,11 +1028,17 @@ static InterpretResult run() {
             Value indexValue = pop();
             Value subscriptValue = pop();
 
+            if (!IS_OBJ(subscriptValue)) {
+                frame->ip = ip;
+                runtimeError("Can only subscript on lists, strings or dictionaries.");
+                return INTERPRET_RUNTIME_ERROR;
+            }
+
             switch (getObjType(subscriptValue)) {
                 case OBJ_LIST: {
                     if (!IS_NUMBER(indexValue)) {
                         frame->ip = ip;
-                        runtimeError("Array index must be a number.");
+                        runtimeError("List index must be a number.");
                         return INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -1040,7 +1058,7 @@ static InterpretResult run() {
                     }
 
                     frame->ip = ip;
-                    runtimeError("Array index out of bounds.");
+                    runtimeError("List index out of bounds.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
