@@ -1155,15 +1155,15 @@ static InterpretResult run() {
             Value indexValue = pop();
             Value subscriptValue = pop();
 
-        if (!IS_OBJ(subscriptValue)) {
-            frame->ip = ip;
+            if (!IS_OBJ(subscriptValue)) {
+                frame->ip = ip;
                 runtimeError("Can only subscript on lists, strings or dictionaries.");
-            if (vm.tryBlock) {
-            } else {
-                DISPATCH();
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
-        }
 
             switch (getObjType(subscriptValue)) {
                 case OBJ_LIST: {
@@ -1370,17 +1370,9 @@ static InterpretResult run() {
             Value superclass = peek(0);
             if (!IS_CLASS(superclass)) {
                 frame->ip = ip;
-                runtimeError("Superclass must be a class.");
-                if (vm.tryBlock) {
-                    Value error = pop();
-                    printValue(error);
-                    printf("\n");
-                    pop();
-                    push(error);
-                    DISPATCH();
-                } else {
-                    return INTERPRET_RUNTIME_ERROR;
-                }
+                va_list args;
+                runtimeErrorEnd("Superclass must be a class.", args);
+                return INTERPRET_RUNTIME_ERROR; // No error handling for subclasses
             }
 
             createClass(READ_STRING(), AS_CLASS(superclass));
@@ -1398,13 +1390,21 @@ static InterpretResult run() {
             if (!IS_STRING(openType)) {
                 frame->ip = ip;
                 runtimeError("File open type must be a string");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             if (!IS_STRING(fileName)) {
                 frame->ip = ip;
                 runtimeError("Filename must be a string");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             ObjString *openTypeString = AS_STRING(openType);
@@ -1418,7 +1418,11 @@ static InterpretResult run() {
             if (file->file == NULL) {
                 frame->ip = ip;
                 runtimeError("Unable to open file");
-                return INTERPRET_RUNTIME_ERROR;
+                if (vm.tryBlock) {
+                    DISPATCH();
+                } else {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
             }
 
             push(OBJ_VAL(file));
